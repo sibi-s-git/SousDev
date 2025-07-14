@@ -1,0 +1,41 @@
+{
+  "name": "sousdev",
+  "version": "1.0.0",
+  "description": "SousDev Desktop App",
+  "main": "public/electron.js",
+  "homepage": "./",
+  "scripts": {
+    "start": "concurrently \"npm run react-only\" \"npm run electron-delay\"",
+    "react-only": "BROWSER=none react-scripts start",
+    "electron-delay": "sleep 8 && npm run electron",
+    "electron": "ELECTRON_IS_DEV=true electron .",
+    "build": "react-scripts build",
+    "test": "react-scripts test",
+    "eject": "react-scripts eject"
+  },
+  "devDependencies": {
+    "@types/react": "^18.2.0",
+    "@types/react-dom": "^18.2.0",
+    "concurrently": "^8.2.2",
+    "electron": "^27.0.0",
+    "typescript": "^5.2.2",
+    "wait-on": "^7.2.0"
+  },
+  "dependencies": {
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "react-scripts": "^5.0.1"
+  },
+  "browserslist": {
+    "production": [
+      ">0.2%",
+      "not dead",
+      "not op_mini all"
+    ],
+    "development": [
+      "last 1 chrome version",
+      "last 1 firefox version",
+      "last 1 safari version"
+    ]
+  }
+}

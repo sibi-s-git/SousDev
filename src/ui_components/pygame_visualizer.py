@@ -1,4 +1,5 @@
 import pygame
+import pygame.gfxdraw  # For anti-aliased shapes
 import time
 import sys
 import random
@@ -33,9 +34,9 @@ class PyGameVisualizer:
         # Prevent PyGame from using too much CPU
         os.environ['SDL_VIDEO_MINIMIZE_ON_FOCUS_LOSS'] = '0'
         
-        # Additional environment variables to prevent segfaults
-        os.environ['SDL_HINT_RENDER_DRIVER'] = 'software'  # Use software renderer
-        os.environ['SDL_HINT_RENDER_VSYNC'] = '0'  # Disable vsync
+        # Additional environment variables for smooth rendering
+        os.environ['SDL_HINT_RENDER_DRIVER'] = 'opengl'  # Use hardware acceleration
+        os.environ['SDL_HINT_RENDER_VSYNC'] = '1'  # Enable vsync for smooth animation
         
         # PyGame resources
         self.screen = None
@@ -50,17 +51,17 @@ class PyGameVisualizer:
         
         Args:
             is_talking: Boolean indicating if the user is talking (ignored)
-            text: Recognized text from speech recognition
+            text: Complete phrase or sentence from speech recognition
         """
         # Only care about text, not talking state
         if text and text.strip() and self.running:
-            print(f"Visualizer received word: {text}")
+            print(f"Visualizer received phrase: {text}")
             
-            # Add word to the queue for processing in the main thread
+            # Add complete phrase to the queue for processing in the main thread
             try:
                 self.word_queue.put(text.strip(), block=False)
             except queue.Full:
-                print("Warning: Word queue is full, dropping word")
+                print("Warning: Phrase queue is full, dropping phrase")
     
     def stop(self):
         """Stop the visualization"""
@@ -106,18 +107,29 @@ class PyGameVisualizer:
             pygame.init()
             self.initialized = True
             
-            # Set up the display with a lower resolution for stability
+            # Set up the display with hardware acceleration and double buffering
             try:
-                self.screen = pygame.display.set_mode((self.width, self.height), pygame.HWSURFACE | pygame.DOUBLEBUF)
+                # Try hardware surface with double buffering for best performance
+                self.screen = pygame.display.set_mode(
+                    (self.width, self.height), 
+                    pygame.HWSURFACE | pygame.DOUBLEBUF | pygame.ANYFORMAT
+                )
             except pygame.error:
-                print("Failed to create hardware surface, falling back to software")
-                self.screen = pygame.display.set_mode((self.width, self.height))
+                try:
+                    print("Failed to create hardware surface, trying software with double buffering")
+                    self.screen = pygame.display.set_mode(
+                        (self.width, self.height), 
+                        pygame.DOUBLEBUF
+                    )
+                except pygame.error:
+                    print("Failed to create double buffered surface, using basic mode")
+                    self.screen = pygame.display.set_mode((self.width, self.height))
                 
             pygame.display.set_caption("SousDev - Voice Programming Assistant")
             
             # Create a clock to control frame rate
             self.clock = pygame.time.Clock()
-            self.fps = 30  # Lower FPS for stability
+            self.fps = 60  # Higher FPS for smooth animation
             
             # Set up colors
             self.WHITE = (255, 255, 255)
@@ -125,6 +137,10 @@ class PyGameVisualizer:
             self.RED = (255, 50, 50)
             self.GREEN = (50, 255, 50)
             self.BLUE = (50, 150, 255)
+            self.LIGHT_GRAY = (220, 220, 220)
+            self.DARK_GRAY = (100, 100, 100)
+            self.BUTTON_COLOR = (70, 130, 255)
+            self.BUTTON_HOVER = (90, 150, 255)
             
             # Line properties
             self.line_y = self.height // 2  # Center of the screen
@@ -148,13 +164,31 @@ class PyGameVisualizer:
             self.pulse_direction = 1
             
             # Text display properties
-            self.words = []  # List of all words to display
-            self.transcript = []  # List of full text lines
+            self.transcript = []  # List of complete spoken phrases/sentences
             self.max_words_per_line = 8  # Fewer words per line to prevent overflow
             self.max_lines = 6  # More lines to display more text
             self.line_spacing = 30  # Smaller spacing between lines
             self.font_size = 24  # Smaller font size to fit more text
             self.max_line_width = self.width - 100  # Maximum width for a line of text
+            
+            # Input box properties
+            self.input_box_height = 120
+            self.input_box_y = self.height - self.input_box_height - 10
+            self.input_box_x = 50
+            self.input_box_width = self.width - 200
+            self.input_text = ""
+            self.input_lines = [""]  # List of lines in the input box
+            self.input_cursor_pos = 0
+            self.input_active = False
+            self.input_scroll = 0  # For scrolling through input lines
+            self.max_input_lines = 4  # Max visible lines in input box
+            
+            # Send button properties
+            self.button_width = 100
+            self.button_height = 40
+            self.button_x = self.width - 130
+            self.button_y = self.height - 60
+            self.button_hovered = False
             
             # Animation flags
             self.new_word_recognized = False
@@ -164,7 +198,21 @@ class PyGameVisualizer:
             
             # Pre-create font to avoid creating it during rendering
             try:
-                self.font = pygame.font.SysFont(None, self.font_size)
+                # Try to use a nice font, fallback to system default
+                font_options = ['arial', 'helvetica', 'calibri', 'segoeui', None]
+                self.font = None
+                for font_name in font_options:
+                    try:
+                        self.font = pygame.font.SysFont(font_name, self.font_size, bold=False)
+                        if self.font:
+                            break
+                    except:
+                        continue
+                
+                # Final fallback if no fonts work
+                if not self.font:
+                    self.font = pygame.font.Font(None, self.font_size)
+                    
             except pygame.error as e:
                 print(f"Error creating font: {e}")
                 self.font = None
@@ -229,6 +277,12 @@ class PyGameVisualizer:
                             with self.lock:
                                 self.running = False
                             break
+                        else:
+                            self._handle_keydown(event)
+                    elif event.type == pygame.MOUSEBUTTONDOWN:
+                        self._handle_mouse_click(event)
+                    elif event.type == pygame.MOUSEMOTION:
+                        self._handle_mouse_motion(event)
                 
                 # Process any words in the queue
                 self._process_word_queue()
@@ -261,12 +315,12 @@ class PyGameVisualizer:
                 self.running = False
     
     def _process_word_queue(self):
-        """Process any words in the queue"""
+        """Process any phrases in the queue"""
         try:
-            # Process all available words
-            words_processed = 0
-            while not self.word_queue.empty() and words_processed < 3:  # Process fewer words at once for stability
-                word = self.word_queue.get(block=False)
+            # Process all available phrases
+            phrases_processed = 0
+            while not self.word_queue.empty() and phrases_processed < 2:  # Process fewer phrases at once
+                phrase = self.word_queue.get(block=False)
                 
                 try:
                     with self.lock:
@@ -278,55 +332,36 @@ class PyGameVisualizer:
                         # Pick a random direction when starting to bounce
                         self.direction = random.choice([-1, 1])
                         
-                        # Add word to the list
-                        self.words.append(word)
+                        # Add complete phrase to transcript
+                        self._update_transcript(phrase)
                         
-                        # Update transcript with word wrapping
-                        self._update_transcript(word)
-                        
-                        print(f"Current words: {self.words}")
-                        words_processed += 1
+                        print(f"Displaying: {phrase}")
+                        phrases_processed += 1
                         
                     # Mark the task as done
                     self.word_queue.task_done()
                 except Exception as e:
-                    print(f"Error processing word: {e}")
+                    print(f"Error processing phrase: {e}")
                     traceback.print_exc()
                 
         except queue.Empty:
-            pass  # No more words to process
+            pass  # No more phrases to process
         except Exception as e:
-            print(f"Error processing word queue: {e}")
+            print(f"Error processing phrase queue: {e}")
             traceback.print_exc()
     
-    def _update_transcript(self, new_word):
-        """Update the transcript with proper word wrapping"""
+    def _update_transcript(self, new_phrase):
+        """Update the transcript with complete phrases"""
         try:
             if not self.font:
                 return
             
-            # Split the incoming text into individual words
-            words_to_add = new_word.split()
+            # Add the complete phrase as a new entry
+            phrase_lines = self._wrap_text(new_phrase)
             
-            # Process each word
-            for word in words_to_add:
-                # If we have no lines yet, start a new one
-                if not self.transcript:
-                    self.transcript.append(word)
-                    continue
-                    
-                # Try to add to the last line
-                last_line = self.transcript[-1]
-                test_line = last_line + " " + word
-                
-                # Check if adding the word would make the line too wide
-                text_surface = self.font.render(test_line, True, self.BLACK)
-                if text_surface.get_width() <= self.max_line_width:
-                    # Word fits on the current line
-                    self.transcript[-1] = test_line
-                else:
-                    # Word doesn't fit, start a new line
-                    self.transcript.append(word)
+            # Add all lines from the phrase
+            for line in phrase_lines:
+                self.transcript.append(line)
                     
             # Keep only the last max_lines
             if len(self.transcript) > self.max_lines:
@@ -335,6 +370,107 @@ class PyGameVisualizer:
         except Exception as e:
             print(f"Error updating transcript: {e}")
             traceback.print_exc()
+    
+    def _wrap_text(self, text):
+        """Wrap text to fit within the display width"""
+        if not self.font or not text:
+            return [text] if text else []
+        
+        words = text.split()
+        lines = []
+        current_line = ""
+        
+        for word in words:
+            test_line = current_line + " " + word if current_line else word
+            text_surface = self.font.render(test_line, True, self.BLACK)
+            
+            if text_surface.get_width() <= self.max_line_width:
+                current_line = test_line
+            else:
+                if current_line:
+                    lines.append(current_line)
+                current_line = word
+        
+        if current_line:
+            lines.append(current_line)
+            
+        return lines
+    
+    def _handle_keydown(self, event):
+        """Handle keyboard input for the text box"""
+        if not self.input_active:
+            # Click to activate input box
+            return
+            
+        if event.key == pygame.K_RETURN or event.key == pygame.K_KP_ENTER:
+            # Send the message
+            self._send_message()
+        elif event.key == pygame.K_BACKSPACE:
+            # Delete character
+            if self.input_text:
+                self.input_text = self.input_text[:-1]
+                self._update_input_lines()
+        elif event.key == pygame.K_UP:
+            # Scroll up in input box
+            if self.input_scroll > 0:
+                self.input_scroll -= 1
+        elif event.key == pygame.K_DOWN:
+            # Scroll down in input box
+            max_scroll = max(0, len(self.input_lines) - self.max_input_lines)
+            if self.input_scroll < max_scroll:
+                self.input_scroll += 1
+        else:
+            # Add character to input
+            if event.unicode and event.unicode.isprintable():
+                self.input_text += event.unicode
+                self._update_input_lines()
+    
+    def _handle_mouse_click(self, event):
+        """Handle mouse clicks"""
+        mouse_x, mouse_y = event.pos
+        
+        # Check if clicking on input box
+        if (self.input_box_x <= mouse_x <= self.input_box_x + self.input_box_width and
+            self.input_box_y <= mouse_y <= self.input_box_y + self.input_box_height):
+            self.input_active = True
+        # Check if clicking on send button
+        elif (self.button_x <= mouse_x <= self.button_x + self.button_width and
+              self.button_y <= mouse_y <= self.button_y + self.button_height):
+            self._send_message()
+        else:
+            self.input_active = False
+    
+    def _handle_mouse_motion(self, event):
+        """Handle mouse motion for button hover effects"""
+        mouse_x, mouse_y = event.pos
+        
+        # Check if hovering over send button
+        self.button_hovered = (
+            self.button_x <= mouse_x <= self.button_x + self.button_width and
+            self.button_y <= mouse_y <= self.button_y + self.button_height
+        )
+    
+    def _update_input_lines(self):
+        """Update the input lines for word wrapping"""
+        if not self.input_text:
+            self.input_lines = [""]
+            return
+            
+        self.input_lines = self._wrap_text(self.input_text)
+        if not self.input_lines:
+            self.input_lines = [""]
+    
+    def _send_message(self):
+        """Send the current input text"""
+        if self.input_text.strip():
+            # Add to transcript
+            self._update_transcript(self.input_text.strip())
+            print(f"User typed: {self.input_text.strip()}")
+            
+            # Clear input
+            self.input_text = ""
+            self.input_lines = [""]
+            self.input_scroll = 0
     
     def _update(self):
         """Update the circle position and color"""
@@ -411,19 +547,18 @@ class PyGameVisualizer:
             # Calculate actual circle radius with pulse effect
             actual_radius = self.circle_radius + self.pulse_size
             
-            # Draw the circle
-            pygame.draw.circle(
-                self.screen, self.circle_color,
-                (int(self.circle_x), int(self.circle_y)), 
-                int(actual_radius)
-            )
+            # Draw the circle with anti-aliasing
+            circle_x, circle_y = int(self.circle_x), int(self.circle_y)
+            radius = int(actual_radius)
             
-            # Draw a black outline around the circle
-            pygame.draw.circle(
-                self.screen, self.BLACK,
-                (int(self.circle_x), int(self.circle_y)), 
-                int(actual_radius), width=2
-            )
+            # Draw filled anti-aliased circle
+            pygame.gfxdraw.aacircle(self.screen, circle_x, circle_y, radius, self.circle_color)
+            pygame.gfxdraw.filled_circle(self.screen, circle_x, circle_y, radius, self.circle_color)
+            
+            # Draw anti-aliased outline
+            pygame.gfxdraw.aacircle(self.screen, circle_x, circle_y, radius, self.BLACK)
+            if radius > 1:
+                pygame.gfxdraw.aacircle(self.screen, circle_x, circle_y, radius-1, self.BLACK)
             
             # Draw recognized words above the line
             with self.lock:
@@ -450,6 +585,9 @@ class PyGameVisualizer:
                     print(f"Error rendering text: {e}")
                     traceback.print_exc()
             
+            # Draw input box and send button
+            self._render_input_elements()
+            
             # Update the display
             try:
                 pygame.display.flip()
@@ -459,6 +597,99 @@ class PyGameVisualizer:
                 
         except Exception as e:
             print(f"Error in render: {e}")
+            traceback.print_exc()
+    
+    def _render_input_elements(self):
+        """Render the input box and send button"""
+        try:
+            if not self.font:
+                return
+                
+            # Draw input box background
+            input_box_rect = pygame.Rect(self.input_box_x, self.input_box_y, 
+                                       self.input_box_width, self.input_box_height)
+            
+            # Input box border color based on active state
+            border_color = self.BLUE if self.input_active else self.DARK_GRAY
+            
+            # Draw input box
+            pygame.draw.rect(self.screen, self.WHITE, input_box_rect)
+            pygame.draw.rect(self.screen, border_color, input_box_rect, 2)
+            
+            # Draw input text with scrolling
+            if self.input_lines:
+                line_height = self.font_size + 2
+                start_line = self.input_scroll
+                end_line = min(len(self.input_lines), start_line + self.max_input_lines)
+                
+                for i in range(start_line, end_line):
+                    if i < len(self.input_lines):
+                        line = self.input_lines[i]
+                        text_surface = self.font.render(line, True, self.BLACK)
+                        
+                        y_pos = self.input_box_y + 10 + (i - start_line) * line_height
+                        self.screen.blit(text_surface, (self.input_box_x + 10, y_pos))
+            
+            # Draw cursor if input is active
+            if self.input_active:
+                cursor_x = self.input_box_x + 10
+                if self.input_lines and len(self.input_lines) > 0:
+                    last_line_index = min(len(self.input_lines) - 1, 
+                                        self.input_scroll + self.max_input_lines - 1)
+                    if last_line_index >= self.input_scroll:
+                        last_line = self.input_lines[last_line_index]
+                        if last_line:
+                            text_surface = self.font.render(last_line, True, self.BLACK)
+                            cursor_x += text_surface.get_width()
+                        
+                        cursor_y = (self.input_box_y + 10 + 
+                                  (last_line_index - self.input_scroll) * (self.font_size + 2))
+                        
+                        # Draw blinking cursor
+                        if int(time.time() * 2) % 2:  # Blink every 0.5 seconds
+                            pygame.draw.line(self.screen, self.BLACK, 
+                                           (cursor_x, cursor_y), 
+                                           (cursor_x, cursor_y + self.font_size), 2)
+            
+            # Draw send button
+            button_rect = pygame.Rect(self.button_x, self.button_y, 
+                                    self.button_width, self.button_height)
+            
+            # Button color based on hover state
+            button_color = self.BUTTON_HOVER if self.button_hovered else self.BUTTON_COLOR
+            
+            # Draw button
+            pygame.draw.rect(self.screen, button_color, button_rect)
+            pygame.draw.rect(self.screen, self.WHITE, button_rect, 2)
+            
+            # Draw button text
+            button_text = self.font.render("Send", True, self.WHITE)
+            text_rect = button_text.get_rect(center=button_rect.center)
+            self.screen.blit(button_text, text_rect)
+            
+            # Draw scroll indicators if needed
+            if len(self.input_lines) > self.max_input_lines:
+                # Up arrow if can scroll up
+                if self.input_scroll > 0:
+                    arrow_x = self.input_box_x + self.input_box_width - 20
+                    arrow_y = self.input_box_y + 10
+                    pygame.draw.polygon(self.screen, self.DARK_GRAY, 
+                                      [(arrow_x, arrow_y + 10), 
+                                       (arrow_x + 10, arrow_y + 10),
+                                       (arrow_x + 5, arrow_y)])
+                
+                # Down arrow if can scroll down
+                max_scroll = len(self.input_lines) - self.max_input_lines
+                if self.input_scroll < max_scroll:
+                    arrow_x = self.input_box_x + self.input_box_width - 20
+                    arrow_y = self.input_box_y + self.input_box_height - 20
+                    pygame.draw.polygon(self.screen, self.DARK_GRAY, 
+                                      [(arrow_x, arrow_y), 
+                                       (arrow_x + 10, arrow_y),
+                                       (arrow_x + 5, arrow_y + 10)])
+                
+        except Exception as e:
+            print(f"Error rendering input elements: {e}")
             traceback.print_exc()
 
 # Only used for testing the visualizer directly

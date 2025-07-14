@@ -70,4 +70,10 @@ venv.bak/
 
 # Large model directories
 vosk-model-en-us-0.22/
-vosk-model*/ 
+vosk-model*/
+
+# Screenshots directory
+screenshots/
+*.png
+*.jpg
+*.jpeg 
