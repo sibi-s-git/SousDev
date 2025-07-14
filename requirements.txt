@@ -1,0 +1,9 @@
+# Audio and speech recognition
+pyaudio>=0.2.11
+vosk>=0.3.44
+
+# UI and visualization
+pygame>=2.1.0
+
+# Utilities
+numpy>=1.20.0 
