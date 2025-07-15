@@ -1,15 +1,38 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import './SetupScreen.css';
 
 interface SetupScreenProps {
-  onSetupComplete: (folderPath: string, claudeApiKey: string) => void;
+  onSetupComplete: (folderPath: string, anthropicApiKey: string, openaiApiKey: string) => void;
 }
 
 const SetupScreen: React.FC<SetupScreenProps> = ({ onSetupComplete }) => {
   const [folderPath, setFolderPath] = useState<string>('');
-  const [claudeApiKey, setClaudeApiKey] = useState<string>('');
+  const [anthropicApiKey, setAnthropicApiKey] = useState<string>('');
+  const [openaiApiKey, setOpenaiApiKey] = useState<string>('');
   const [isLoading, setIsLoading] = useState<boolean>(false);
-  const [errors, setErrors] = useState<{folder?: string; apiKey?: string}>({});
+  const [errors, setErrors] = useState<{folder?: string; anthropicApiKey?: string; openaiApiKey?: string}>({});
+
+  // Load environment variables on component mount
+  useEffect(() => {
+    const loadEnvVars = async () => {
+      try {
+        const envVars = await window.electronAPI.loadEnvVars();
+        if (envVars.PROJECT_FOLDER) {
+          setFolderPath(envVars.PROJECT_FOLDER);
+        }
+        if (envVars.ANTHROPIC_API_KEY) {
+          setAnthropicApiKey(envVars.ANTHROPIC_API_KEY);
+        }
+        if (envVars.OPENAI_API_KEY) {
+          setOpenaiApiKey(envVars.OPENAI_API_KEY);
+        }
+      } catch (error) {
+        console.error('Error loading environment variables:', error);
+      }
+    };
+    
+    loadEnvVars();
+  }, []);
 
   const handleChooseFolder = async () => {
     try {
@@ -23,17 +46,23 @@ const SetupScreen: React.FC<SetupScreenProps> = ({ onSetupComplete }) => {
     }
   };
 
-  const handleSave = () => {
-    const newErrors: {folder?: string; apiKey?: string} = {};
+  const handleSave = async () => {
+    const newErrors: {folder?: string; anthropicApiKey?: string; openaiApiKey?: string} = {};
     
     if (!folderPath.trim()) {
       newErrors.folder = 'Please select a folder';
     }
     
-    if (!claudeApiKey.trim()) {
-      newErrors.apiKey = 'Please enter your Claude API key';
-    } else if (!claudeApiKey.startsWith('sk-ant-')) {
-      newErrors.apiKey = 'Invalid Claude API key format';
+    if (!anthropicApiKey.trim()) {
+      newErrors.anthropicApiKey = 'Please enter your Anthropic API key';
+    } else if (!anthropicApiKey.startsWith('sk-ant-')) {
+      newErrors.anthropicApiKey = 'Invalid Anthropic API key format';
+    }
+
+    if (!openaiApiKey.trim()) {
+      newErrors.openaiApiKey = 'Please enter your OpenAI API key';
+    } else if (!openaiApiKey.startsWith('sk-')) {
+      newErrors.openaiApiKey = 'Invalid OpenAI API key format';
     }
     
     if (Object.keys(newErrors).length > 0) {
@@ -43,11 +72,25 @@ const SetupScreen: React.FC<SetupScreenProps> = ({ onSetupComplete }) => {
     
     setIsLoading(true);
     
-    // Simulate save delay
-    setTimeout(() => {
-      onSetupComplete(folderPath, claudeApiKey);
+    try {
+      // Save environment variables
+      const envVars = {
+        PROJECT_FOLDER: folderPath,
+        ANTHROPIC_API_KEY: anthropicApiKey,
+        OPENAI_API_KEY: openaiApiKey
+      };
+      
+      await window.electronAPI.saveEnvVars(envVars);
+      
+      // Simulate save delay
+      setTimeout(() => {
+        onSetupComplete(folderPath, anthropicApiKey, openaiApiKey);
+        setIsLoading(false);
+      }, 500);
+    } catch (error) {
+      console.error('Error saving environment variables:', error);
       setIsLoading(false);
-    }, 500);
+    }
   };
 
   return (
@@ -77,19 +120,35 @@ const SetupScreen: React.FC<SetupScreenProps> = ({ onSetupComplete }) => {
           </div>
           
           <div className="input-group">
-            <label htmlFor="claude-api-key">Claude API Key</label>
+            <label htmlFor="anthropic-api-key">Anthropic API Key</label>
             <input
-              id="claude-api-key"
+              id="anthropic-api-key"
               type="password"
-              value={claudeApiKey}
+              value={anthropicApiKey}
               onChange={(e) => {
-                setClaudeApiKey(e.target.value);
-                setErrors(prev => ({ ...prev, apiKey: undefined }));
+                setAnthropicApiKey(e.target.value);
+                setErrors(prev => ({ ...prev, anthropicApiKey: undefined }));
               }}
               placeholder="sk-ant-..."
-              className={errors.apiKey ? 'error' : ''}
+              className={errors.anthropicApiKey ? 'error' : ''}
             />
-            {errors.apiKey && <span className="error-text">{errors.apiKey}</span>}
+            {errors.anthropicApiKey && <span className="error-text">{errors.anthropicApiKey}</span>}
+          </div>
+
+          <div className="input-group">
+            <label htmlFor="openai-api-key">OpenAI API Key</label>
+                         <input
+               id="openai-api-key"
+               type="password"
+               value={openaiApiKey}
+               onChange={(e) => {
+                 setOpenaiApiKey(e.target.value);
+                 setErrors(prev => ({ ...prev, openaiApiKey: undefined }));
+               }}
+               placeholder="sk-..."
+               className={errors.openaiApiKey ? 'error' : ''}
+             />
+            {errors.openaiApiKey && <span className="error-text">{errors.openaiApiKey}</span>}
           </div>
           
           <button 

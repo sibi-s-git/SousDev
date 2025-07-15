@@ -4,11 +4,12 @@ import './VoiceScreen.css';
 
 interface VoiceScreenProps {
   folderPath: string;
-  claudeApiKey: string;
+  anthropicApiKey: string;
+  openaiApiKey: string;
   onReset: () => void;
 }
 
-const VoiceScreen: React.FC<VoiceScreenProps> = ({ folderPath, claudeApiKey, onReset }) => {
+const VoiceScreen: React.FC<VoiceScreenProps> = ({ folderPath, anthropicApiKey, openaiApiKey, onReset }) => {
   const [isListening, setIsListening] = useState<boolean>(false);
   const [transcript, setTranscript] = useState<string>('');
   const [isProcessing, setIsProcessing] = useState<boolean>(false);
@@ -84,7 +85,7 @@ const VoiceScreen: React.FC<VoiceScreenProps> = ({ folderPath, claudeApiKey, onR
       // and the folderPath and claudeApiKey for processing
       console.log('Processing command:', transcript);
       console.log('Folder path:', folderPath);
-      console.log('API key available:', !!claudeApiKey);
+      console.log('API key available:', !!anthropicApiKey);
       
       // Simulate processing delay
       await new Promise(resolve => setTimeout(resolve, 2000));

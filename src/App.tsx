@@ -1,55 +1,37 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import SetupScreen from './screens/SetupScreen';
 import VoiceScreen from './screens/VoiceScreen';
 import './App.css';
 
-
-
 interface AppState {
   folderPath: string | null;
-  claudeApiKey: string | null;
+  anthropicApiKey: string | null;
+  openaiApiKey: string | null;
   isSetupComplete: boolean;
 }
 
 function App() {
   const [appState, setAppState] = useState<AppState>({
     folderPath: null,
-    claudeApiKey: null,
+    anthropicApiKey: null,
+    openaiApiKey: null,
     isSetupComplete: false
   });
 
-  // Load saved settings from localStorage
-  useEffect(() => {
-    const savedFolderPath = localStorage.getItem('sousdev_folderPath');
-    const savedApiKey = localStorage.getItem('sousdev_claudeApiKey');
-    
-    if (savedFolderPath && savedApiKey) {
-      setAppState({
-        folderPath: savedFolderPath,
-        claudeApiKey: savedApiKey,
-        isSetupComplete: true
-      });
-    }
-  }, []);
-
-  const handleSetupComplete = (folderPath: string, claudeApiKey: string) => {
-    // Save to localStorage
-    localStorage.setItem('sousdev_folderPath', folderPath);
-    localStorage.setItem('sousdev_claudeApiKey', claudeApiKey);
-    
+  const handleSetupComplete = (folderPath: string, anthropicApiKey: string, openaiApiKey: string) => {
     setAppState({
       folderPath,
-      claudeApiKey,
+      anthropicApiKey,
+      openaiApiKey,
       isSetupComplete: true
     });
   };
 
   const handleReset = () => {
-    localStorage.removeItem('sousdev_folderPath');
-    localStorage.removeItem('sousdev_claudeApiKey');
     setAppState({
       folderPath: null,
-      claudeApiKey: null,
+      anthropicApiKey: null,
+      openaiApiKey: null,
       isSetupComplete: false
     });
   };
@@ -65,7 +47,8 @@ function App() {
       ) : (
         <VoiceScreen 
           folderPath={appState.folderPath!}
-          claudeApiKey={appState.claudeApiKey!}
+          anthropicApiKey={appState.anthropicApiKey!}
+          openaiApiKey={appState.openaiApiKey!}
           onReset={handleReset}
         />
       )}
