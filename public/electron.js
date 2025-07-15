@@ -146,7 +146,87 @@ ipcMain.handle('ensure-context-folder', async () => {
   return ensureProjectContextFolder();
 });
 
-// Handle project vectorization
+// Check if project intelligence exists
+ipcMain.handle('check-project-intelligence', async (event, contentPath) => {
+  try {
+    const resolvedContentPath = path.resolve(__dirname, '..', contentPath);
+    const intelligencePath = path.join(resolvedContentPath, 'project_intelligence');
+    const embeddingsPath = path.join(resolvedContentPath, 'embeddings');
+    
+    const intelligenceExists = fs.existsSync(intelligencePath) && 
+                              fs.existsSync(path.join(intelligencePath, 'full_analysis.json'));
+    const embeddingsExist = fs.existsSync(embeddingsPath) && 
+                           fs.existsSync(path.join(embeddingsPath, 'embeddings.index'));
+    
+    return {
+      intelligence_exists: intelligenceExists,
+      embeddings_exist: embeddingsExist
+    };
+  } catch (error) {
+    console.error('Error checking project intelligence:', error);
+    return {
+      intelligence_exists: false,
+      embeddings_exist: false
+    };
+  }
+});
+
+// Handle project analysis (always runs)
+ipcMain.handle('analyze-project', async (event, projectPath, contentPath, anthropicApiKey) => {
+  return new Promise((resolve, reject) => {
+    console.log('Starting project analysis...');
+    console.log('Project path:', projectPath);
+    console.log('Content path:', contentPath);
+    
+    // Resolve content path relative to app directory
+    const resolvedContentPath = path.resolve(__dirname, '..', contentPath);
+    console.log('Resolved content path:', resolvedContentPath);
+    
+    // Path to the Python analysis script
+    const scriptPath = path.join(__dirname, '..', 'src', 'vectorization', 'project_analyzer.py');
+    
+    // Spawn Python process for analysis
+    const pythonProcess = spawn('python3', [
+      scriptPath,
+      projectPath,
+      resolvedContentPath,
+      anthropicApiKey
+    ], {
+      cwd: path.join(__dirname, '..')
+    });
+    
+    let stdout = '';
+    let stderr = '';
+    
+    pythonProcess.stdout.on('data', (data) => {
+      stdout += data.toString();
+      console.log('Analysis stdout:', data.toString());
+    });
+    
+    pythonProcess.stderr.on('data', (data) => {
+      stderr += data.toString();
+      console.error('Analysis stderr:', data.toString());
+    });
+    
+    pythonProcess.on('close', (code) => {
+      if (code === 0) {
+        console.log('Project analysis completed successfully');
+        resolve({ success: true, output: stdout });
+      } else {
+        console.error('Project analysis failed with code:', code);
+        console.error('Error output:', stderr);
+        reject(new Error(`Analysis failed: ${stderr}`));
+      }
+    });
+    
+    pythonProcess.on('error', (error) => {
+      console.error('Failed to start analysis process:', error);
+      reject(error);
+    });
+  });
+});
+
+// Handle project vectorization (conditionally runs on Get Started)
 ipcMain.handle('vectorize-project', async (event, projectPath, contentPath, openaiApiKey) => {
   return new Promise((resolve, reject) => {
     console.log('Starting project vectorization...');
@@ -201,6 +281,172 @@ ipcMain.handle('vectorize-project', async (event, projectPath, contentPath, open
     pythonProcess.on('error', (error) => {
       console.error('Failed to start Python process:', error);
       reject(new Error('Failed to start vectorization process: ' + error.message));
+    });
+  });
+});
+
+// Handle full reload (analysis + vectorization)
+ipcMain.handle('reload-project', async (event, projectPath, contentPath, openaiApiKey, anthropicApiKey) => {
+  try {
+    console.log('Starting full project reload...');
+    
+    // Step 1: Run project analysis
+    const analysisResult = await new Promise((resolve, reject) => {
+      const resolvedContentPath = path.resolve(__dirname, '..', contentPath);
+      const scriptPath = path.join(__dirname, '..', 'src', 'vectorization', 'project_analyzer.py');
+      
+      const analysisProcess = spawn('python3', [
+        scriptPath,
+        projectPath,
+        resolvedContentPath,
+        anthropicApiKey
+      ], {
+        cwd: path.join(__dirname, '..')
+      });
+      
+      let stdout = '';
+      let stderr = '';
+      
+      analysisProcess.stdout.on('data', (data) => {
+        stdout += data.toString();
+        console.log('Analysis stdout:', data.toString());
+      });
+      
+      analysisProcess.stderr.on('data', (data) => {
+        stderr += data.toString();
+        console.error('Analysis stderr:', data.toString());
+      });
+      
+      analysisProcess.on('close', (code) => {
+        if (code === 0) {
+          resolve({ success: true, output: stdout });
+        } else {
+          reject(new Error(`Analysis failed: ${stderr}`));
+        }
+      });
+      
+      analysisProcess.on('error', (error) => {
+        reject(error);
+      });
+    });
+    
+    // Step 2: Run vectorization
+    const vectorizationResult = await new Promise((resolve, reject) => {
+      const resolvedContentPath = path.resolve(__dirname, '..', contentPath);
+      const scriptPath = path.join(__dirname, '..', 'src', 'vectorization', 'project_vectorizer.py');
+      
+      const vectorProcess = spawn('python3', [
+        scriptPath,
+        projectPath,
+        resolvedContentPath,
+        openaiApiKey
+      ], {
+        cwd: path.join(__dirname, '..')
+      });
+      
+      let stdout = '';
+      let stderr = '';
+      
+      vectorProcess.stdout.on('data', (data) => {
+        stdout += data.toString();
+        console.log('Vectorization stdout:', data.toString());
+      });
+      
+      vectorProcess.stderr.on('data', (data) => {
+        stderr += data.toString();
+        console.error('Vectorization stderr:', data.toString());
+      });
+      
+      vectorProcess.on('close', (code) => {
+        if (code === 0) {
+          try {
+            const result = JSON.parse(stdout);
+            resolve(result);
+          } catch (e) {
+            reject(new Error('Failed to parse vectorization output: ' + e.message));
+          }
+        } else {
+          reject(new Error(`Vectorization failed: ${stderr}`));
+        }
+      });
+      
+      vectorProcess.on('error', (error) => {
+        reject(error);
+      });
+    });
+    
+    console.log('Full project reload completed successfully');
+    return { 
+      success: true, 
+      analysis: analysisResult, 
+      vectorization: vectorizationResult 
+    };
+    
+  } catch (error) {
+    console.error('Project reload failed:', error);
+    throw error;
+  }
+});
+
+// Handle intelligent chat processing
+ipcMain.handle('intelligent-chat', async (event, userMessage, images, projectPath, contentPath, anthropicApiKey) => {
+  return new Promise((resolve, reject) => {
+    console.log('Starting intelligent chat processing...');
+    console.log('User message:', userMessage.substring(0, 100) + '...');
+    console.log('Images count:', images ? images.length : 0);
+    
+    // Resolve content path relative to app directory
+    const resolvedContentPath = path.resolve(__dirname, '..', contentPath);
+    console.log('Resolved content path:', resolvedContentPath);
+    
+    // Path to the Python chat script
+    const scriptPath = path.join(__dirname, '..', 'src', 'chatbot', 'intelligent_chat.py');
+    
+    // Prepare images JSON
+    const imagesJson = images && images.length > 0 ? JSON.stringify(images) : 'null';
+    
+    // Spawn Python process for intelligent chat
+    const pythonProcess = spawn('python3', [
+      scriptPath,
+      userMessage,
+      imagesJson,
+      projectPath,
+      resolvedContentPath,
+      anthropicApiKey
+    ], {
+      cwd: path.join(__dirname, '..')
+    });
+    
+    let stdout = '';
+    let stderr = '';
+    
+    pythonProcess.stdout.on('data', (data) => {
+      stdout += data.toString();
+      console.log('Chat stdout:', data.toString());
+    });
+    
+    pythonProcess.stderr.on('data', (data) => {
+      stderr += data.toString();
+      console.error('Chat stderr:', data.toString());
+    });
+    
+    pythonProcess.on('close', (code) => {
+      if (code === 0) {
+        try {
+          const result = JSON.parse(stdout);
+          console.log('Intelligent chat completed successfully');
+          resolve(result);
+        } catch (e) {
+          reject(new Error('Failed to parse chat response: ' + e.message));
+        }
+      } else {
+        reject(new Error(`Intelligent chat failed with code ${code}: ${stderr}`));
+      }
+    });
+    
+    pythonProcess.on('error', (error) => {
+      console.error('Failed to start chat process:', error);
+      reject(new Error('Failed to start intelligent chat process: ' + error.message));
     });
   });
 });

@@ -22,9 +22,63 @@ const VoiceScreen: React.FC<VoiceScreenProps> = ({ folderPath, anthropicApiKey, 
   const [uploadedImages, setUploadedImages] = useState<string[]>([]);
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const [isProcessing, setIsProcessing] = useState<boolean>(false);
+  const [isReloading, setIsReloading] = useState<boolean>(false);
   const [isDragOver, setIsDragOver] = useState<boolean>(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const chatContainerRef = useRef<HTMLDivElement>(null);
+
+  const handleReload = async () => {
+    if (isReloading) return;
+    
+    setIsReloading(true);
+    try {
+      // Get the project name from the folder path
+      const projectName = folderPath.split('/').pop() || 'Unknown Project';
+      const contentPath = `content/${projectName}`;
+      
+      // Call the combined reload process (analysis + vectorization)
+      const reloadResult = await (window as any).electronAPI.reloadProject(
+        folderPath, 
+        contentPath, 
+        openaiApiKey, 
+        anthropicApiKey
+      );
+      
+      console.log('Reload result:', reloadResult);
+      
+      // Add a success message to indicate reload completion
+      const reloadMessage: ChatMessage = {
+        id: Date.now().toString(),
+        type: 'assistant',
+        content: '🔄 Project refresh completed! Both project analysis and vectorization have been updated with the latest changes.',
+        timestamp: new Date()
+      };
+      
+      setMessages(prev => [...prev, reloadMessage]);
+      
+      // Scroll to bottom to show the new message
+      setTimeout(() => {
+        if (chatContainerRef.current) {
+          chatContainerRef.current.scrollTop = chatContainerRef.current.scrollHeight;
+        }
+      }, 100);
+      
+    } catch (error) {
+      console.error('Error during project reload:', error);
+      
+      // Add error message to chat
+      const errorMessage: ChatMessage = {
+        id: Date.now().toString(),
+        type: 'assistant',
+        content: '❌ Failed to refresh project knowledge. Please check your API keys and try again.',
+        timestamp: new Date()
+      };
+      
+      setMessages(prev => [...prev, errorMessage]);
+    } finally {
+      setIsReloading(false);
+    }
+  };
 
   const handleImageUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const files = event.target.files;
@@ -89,46 +143,94 @@ const VoiceScreen: React.FC<VoiceScreenProps> = ({ folderPath, anthropicApiKey, 
 
   const handleSendMessage = async () => {
     if (!inputMessage.trim() && uploadedImages.length === 0) return;
-
-    const newMessage: ChatMessage = {
+    
+    // Create user message
+    const userMessage: ChatMessage = {
       id: Date.now().toString(),
       type: 'user',
-      content: inputMessage,
+      content: inputMessage.trim(),
       images: uploadedImages.length > 0 ? [...uploadedImages] : undefined,
       timestamp: new Date()
     };
-
-    setMessages(prev => [...prev, newMessage]);
+    
+    // Add user message to chat
+    setMessages(prev => [...prev, userMessage]);
+    
+    // Clear input and show processing state
+    const userInput = inputMessage.trim();
+    const userImages = [...uploadedImages];
     setInputMessage('');
     setUploadedImages([]);
     setIsProcessing(true);
-
+    
     // Scroll to bottom
     setTimeout(() => {
       if (chatContainerRef.current) {
         chatContainerRef.current.scrollTop = chatContainerRef.current.scrollHeight;
       }
     }, 100);
-
-    // Simulate AI response (replace with actual AI integration later)
-    setTimeout(() => {
-      const aiResponse: ChatMessage = {
+    
+    try {
+      // Get project info
+      const projectName = folderPath.split('/').pop() || 'Unknown Project';
+      const contentPath = `content/${projectName}`;
+      
+      // Call intelligent chat system
+      const chatResult = await (window as any).electronAPI.intelligentChat(
+        userInput,
+        userImages,
+        folderPath,
+        contentPath,
+        anthropicApiKey
+      );
+      
+      if (chatResult.success) {
+        // Add AI response to chat
+        const aiMessage: ChatMessage = {
+          id: (Date.now() + 1).toString(),
+          type: 'assistant',
+          content: chatResult.response,
+          timestamp: new Date()
+        };
+        
+        setMessages(prev => [...prev, aiMessage]);
+        
+        console.log('Search strategy used:', chatResult.search_strategy);
+        console.log('Search results found:', chatResult.search_results_count);
+      } else {
+        // Add error message
+        const errorMessage: ChatMessage = {
+          id: (Date.now() + 1).toString(),
+          type: 'assistant',
+          content: `❌ Sorry, I encountered an error: ${chatResult.error}`,
+          timestamp: new Date()
+        };
+        
+        setMessages(prev => [...prev, errorMessage]);
+      }
+      
+    } catch (error) {
+      console.error('Error in intelligent chat:', error);
+      
+      // Add error message to chat
+      const errorMessage: ChatMessage = {
         id: (Date.now() + 1).toString(),
         type: 'assistant',
-        content: `I received your message: "${inputMessage}". This is where I would process your request using the project context from ${folderPath}. The vectorized project data would help me provide relevant code suggestions and answers.`,
+        content: '❌ Sorry, I encountered an error processing your request. Please try again.',
         timestamp: new Date()
       };
-
-      setMessages(prev => [...prev, aiResponse]);
+      
+      setMessages(prev => [...prev, errorMessage]);
+    } finally {
       setIsProcessing(false);
-
-      // Scroll to bottom
+      
+      // Scroll to bottom again to show the response
       setTimeout(() => {
         if (chatContainerRef.current) {
           chatContainerRef.current.scrollTop = chatContainerRef.current.scrollHeight;
         }
       }, 100);
-    }, 2000);
+    }
   };
 
   const handleKeyPress = (e: React.KeyboardEvent) => {
@@ -171,6 +273,11 @@ const VoiceScreen: React.FC<VoiceScreenProps> = ({ folderPath, anthropicApiKey, 
             Change Settings
           </button>
           <span className="project-location">{folderPath}</span>
+        </div>
+        <div className="header-right">
+          <button onClick={handleReload} disabled={isReloading} className="reload-btn">
+            {isReloading ? 'Refreshing...' : 'Refresh Knowledge'}
+          </button>
         </div>
       </div>
 

@@ -1,0 +1,144 @@
+{
+  "project_overview": {
+    "name": "MedohTool",
+    "purpose": "A web application that simulates sending text messages to patients by validating phone numbers using area codes and storing sent message history in a database.",
+    "architecture_pattern": "Client-Server architecture with React frontend and Flask backend"
+  },
+  "entry_points": [
+    {
+      "file": "client/src/index.js",
+      "type": "react_entry",
+      "purpose": "Main React application entry point that renders the App component",
+      "how_to_run": "docker compose up (runs on http://localhost:3000)",
+      "dependencies": [
+        "react",
+        "react-dom"
+      ]
+    },
+    {
+      "file": "backend/app.py",
+      "type": "python_api_server",
+      "purpose": "Flask API server that handles message sending, phone validation, and database operations",
+      "how_to_run": "docker compose up (runs on http://localhost:5001)",
+      "dependencies": [
+        "flask",
+        "flask-cors",
+        "supabase"
+      ]
+    }
+  ],
+  "data_flows": [
+    {
+      "from": "React frontend (App.js)",
+      "to": "Flask backend (/send endpoint)",
+      "method": "HTTP POST API",
+      "purpose": "Send doctor name and phone number to simulate message sending",
+      "files_involved": [
+        "client/src/App.js",
+        "backend/app.py"
+      ]
+    },
+    {
+      "from": "Flask backend",
+      "to": "Supabase database",
+      "method": "Supabase client API",
+      "purpose": "Store and retrieve message history with phone numbers and doctor names",
+      "files_involved": [
+        "backend/app.py"
+      ]
+    },
+    {
+      "from": "React frontend",
+      "to": "Flask backend (/get-messages endpoint)",
+      "method": "HTTP GET API",
+      "purpose": "Retrieve message history for CSV download",
+      "files_involved": [
+        "client/src/App.js",
+        "backend/app.py"
+      ]
+    }
+  ],
+  "key_modules": [
+    {
+      "name": "App Component",
+      "file": "client/src/App.js",
+      "purpose": "Main UI component handling form input, phone number formatting, and message sending",
+      "dependencies": [
+        "react"
+      ],
+      "interfaces": [
+        "form submission",
+        "phone number validation",
+        "CSV download"
+      ]
+    },
+    {
+      "name": "Flask API Server",
+      "file": "backend/app.py",
+      "purpose": "Handles API requests, validates phone numbers against area codes, and manages database operations",
+      "dependencies": [
+        "flask",
+        "flask-cors",
+        "supabase"
+      ],
+      "interfaces": [
+        "/send POST endpoint",
+        "/get-messages GET endpoint",
+        "phone number validation"
+      ]
+    },
+    {
+      "name": "Phone Number Validator",
+      "file": "backend/app.py",
+      "purpose": "Validates phone numbers against a list of valid area codes loaded from file",
+      "dependencies": [
+        "valid_area_codes.txt"
+      ],
+      "interfaces": [
+        "format_phone_number function",
+        "load_valid_area_codes function"
+      ]
+    }
+  ],
+  "external_integrations": [
+    {
+      "service": "Supabase",
+      "purpose": "Cloud database service for storing message history and patient data",
+      "files": [
+        "backend/app.py"
+      ],
+      "type": "database"
+    }
+  ],
+  "development_setup": {
+    "install_commands": [
+      "Install Docker Desktop"
+    ],
+    "run_commands": [
+      "docker compose up"
+    ],
+    "build_commands": [
+      "docker compose build"
+    ],
+    "test_commands": [
+      "npm test (for frontend testing)"
+    ]
+  },
+  "common_patterns": [
+    "Docker containerization for both frontend and backend services",
+    "CORS configuration to allow frontend-backend communication",
+    "Phone number formatting and validation using regex patterns",
+    "Database operations with upsert logic (insert or update existing records)",
+    "RESTful API design with JSON request/response format",
+    "React hooks (useState) for state management",
+    "Error handling with try-catch blocks and user feedback"
+  ],
+  "_metadata": {
+    "model_used": "claude-sonnet-4-20250514",
+    "cache_creation_tokens": 0,
+    "cache_read_tokens": 0,
+    "input_tokens": 6829,
+    "output_tokens": 1017,
+    "analysis_timestamp": "2025-07-15T15:16:28.194428"
+  }
+}

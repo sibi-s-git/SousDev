@@ -84,32 +84,74 @@ const SetupScreen: React.FC<SetupScreenProps> = ({ onSetupComplete }) => {
       
       await window.electronAPI.saveEnvVars(envVars);
       
-      // Start vectorization
-      setLoadingMessage('Vectorizing project files...');
-      console.log('Starting project vectorization...');
-      // Use relative path - the main process will resolve it correctly
-      const contentPath = './content';
+      // Get the project name from the folder path and create correct content path
+      const projectName = folderPath.split('/').pop() || 'Unknown Project';
+      const contentPath = `content/${projectName}`;
       
-      try {
-        const vectorizationResult = await window.electronAPI.vectorizeProject(
-          folderPath,
-          contentPath,
-          openaiApiKey
-        );
+      // Step 1: Check if project intelligence already exists
+      setLoadingMessage('Checking existing project data...');
+      const projectCheck = await window.electronAPI.checkProjectIntelligence(contentPath);
+      console.log('Project intelligence check:', projectCheck);
+      
+      // Step 2: Only proceed if either intelligence OR embeddings are missing
+      if (!projectCheck.intelligence_exists || !projectCheck.embeddings_exist) {
         
-        console.log('Vectorization result:', vectorizationResult);
-        
-        if (vectorizationResult.status === 'completed') {
-          console.log(`Successfully vectorized ${vectorizationResult.total_files} files into ${vectorizationResult.total_chunks} chunks`);
-        } else if (vectorizationResult.status === 'no_files') {
-          console.log('No supported files found in project for vectorization');
+        // Run project analysis if intelligence doesn't exist
+        if (!projectCheck.intelligence_exists) {
+          setLoadingMessage('Analyzing project structure...');
+          console.log('Starting project analysis...');
+          
+          try {
+            const analysisResult = await window.electronAPI.analyzeProject(
+              folderPath,
+              contentPath,
+              anthropicApiKey
+            );
+            
+            console.log('Analysis result:', analysisResult);
+            console.log('Project analysis completed successfully');
+          } catch (analysisError) {
+            console.error('Project analysis failed:', analysisError);
+            // Continue anyway - analysis failure shouldn't block setup
+          }
         } else {
-          console.warn('Vectorization completed with status:', vectorizationResult.status);
+          console.log('Project intelligence already exists, skipping analysis');
         }
-      } catch (vectorizationError) {
-        console.error('Vectorization failed:', vectorizationError);
-        // Don't block the setup process if vectorization fails
-        // The user can still proceed to use the app
+        
+        // Run vectorization if embeddings don't exist
+        if (!projectCheck.embeddings_exist) {
+          setLoadingMessage('Vectorizing project files...');
+          console.log('Starting project vectorization...');
+          
+          try {
+            const vectorizationResult = await window.electronAPI.vectorizeProject(
+              folderPath,
+              contentPath,
+              openaiApiKey
+            );
+            
+            console.log('Vectorization result:', vectorizationResult);
+            
+            if (vectorizationResult.status === 'completed') {
+              console.log(`Successfully vectorized ${vectorizationResult.total_files} files into ${vectorizationResult.total_chunks} chunks`);
+            } else if (vectorizationResult.status === 'no_files') {
+              console.log('No supported files found in project for vectorization');
+            } else {
+              console.warn('Vectorization completed with status:', vectorizationResult.status);
+            }
+          } catch (vectorizationError) {
+            console.error('Vectorization failed:', vectorizationError);
+            // Don't block the setup process if vectorization fails
+          }
+        } else {
+          console.log('Embeddings already exist, skipping vectorization');
+        }
+        
+      } else {
+        console.log('Both project intelligence and embeddings already exist - skipping all processing');
+        setLoadingMessage('Using existing project data...');
+        // Small delay for user feedback
+        await new Promise(resolve => setTimeout(resolve, 1000));
       }
       
               // Complete setup

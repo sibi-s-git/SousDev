@@ -1,0 +1,162 @@
+{
+  "timestamp": "2025-07-15T15:16:08.784881",
+  "project_path": "/Users/sibi/Documents/MedohTool",
+  "project_name": "MedohTool",
+  "file_tree": {},
+  "file_inventory": [
+    {
+      "path": "README.md",
+      "type": "documentation",
+      "size": 542,
+      "lines": 25,
+      "imports": [],
+      "exports": [],
+      "key_elements": []
+    },
+    {
+      "path": "backend/app.py",
+      "type": "python_api_server",
+      "size": 6711,
+      "lines": 190,
+      "imports": [
+        "from flask import Flask, request, jsonify",
+        "from flask_cors import CORS",
+        "from supabase import create_client, Client",
+        "import os",
+        "import re",
+        "from datetime import datetime"
+      ],
+      "exports": [],
+      "key_elements": [
+        "def load_valid_area_codes():",
+        "def format_phone_number(phone):",
+        "def generate_unique_link(doctor_name, phone_number, message_id):",
+        "def send_bulk_messages():",
+        "def get_messages():",
+        "def delete_all():"
+      ]
+    },
+    {
+      "path": "client/public/index.html",
+      "type": "code_file",
+      "size": 1721,
+      "lines": 44,
+      "imports": [],
+      "exports": [],
+      "key_elements": []
+    },
+    {
+      "path": "client/public/manifest.json",
+      "type": "code_file",
+      "size": 492,
+      "lines": 26,
+      "imports": [],
+      "exports": [],
+      "key_elements": []
+    },
+    {
+      "path": "client/src/reportWebVitals.js",
+      "type": "javascript_module",
+      "size": 362,
+      "lines": 14,
+      "imports": [],
+      "exports": [
+        "export default reportWebVitals;"
+      ],
+      "key_elements": [
+        "const reportWebVitals = onPerfEntry => {"
+      ]
+    },
+    {
+      "path": "client/src/App.css",
+      "type": "stylesheet",
+      "size": 2584,
+      "lines": 185,
+      "imports": [],
+      "exports": [],
+      "key_elements": []
+    },
+    {
+      "path": "client/src/index.js",
+      "type": "code_file",
+      "size": 535,
+      "lines": 18,
+      "imports": [
+        "react",
+        "react-dom/client",
+        "./App",
+        "./reportWebVitals"
+      ],
+      "exports": [],
+      "key_elements": []
+    },
+    {
+      "path": "client/src/index.css",
+      "type": "stylesheet",
+      "size": 366,
+      "lines": 14,
+      "imports": [],
+      "exports": [],
+      "key_elements": []
+    },
+    {
+      "path": "client/src/App.test.js",
+      "type": "code_file",
+      "size": 246,
+      "lines": 9,
+      "imports": [
+        "@testing-library/react",
+        "./App"
+      ],
+      "exports": [],
+      "key_elements": []
+    },
+    {
+      "path": "client/src/setupTests.js",
+      "type": "code_file",
+      "size": 241,
+      "lines": 6,
+      "imports": [],
+      "exports": [],
+      "key_elements": []
+    },
+    {
+      "path": "client/src/App.js",
+      "type": "javascript_module",
+      "size": 4429,
+      "lines": 155,
+      "imports": [
+        "react"
+      ],
+      "exports": [
+        "export default App;"
+      ],
+      "key_elements": [
+        "function App() {",
+        "const formatPhoneNumber = (input) => {",
+        "const handlePhoneNumberChange = (e) => {",
+        "const handleSubmit = async (e) => {",
+        "const downloadCSV = async () => {"
+      ]
+    }
+  ],
+  "technology_detection": {
+    "languages": [
+      "JavaScript/TypeScript",
+      "Python"
+    ],
+    "frameworks": [],
+    "config_files": [
+      "docker-compose.yml",
+      "requirements.txt",
+      "Dockerfile",
+      "Dockerfile",
+      "package.json"
+    ]
+  },
+  "summary": {
+    "total_code_files": 11,
+    "total_config_files": 5,
+    "analyzed_files": 11
+  }
+}

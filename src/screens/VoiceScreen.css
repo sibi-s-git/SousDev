@@ -12,7 +12,7 @@
 /* Header */
 .chat-header {
   display: flex;
-  justify-content: flex-start;
+  justify-content: space-between;
   align-items: center;
   padding: 8px 20px;
   background-color: #2a2a2a;
@@ -21,6 +21,12 @@
 }
 
 .header-left {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.header-right {
   display: flex;
   align-items: center;
   gap: 16px;
@@ -40,6 +46,31 @@
 
 .change-settings-btn:hover {
   background: #444;
+}
+
+.reload-btn {
+  background: #2a4a3a;
+  color: white;
+  border: 1px solid #4a7c59;
+  padding: 6px 12px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 14px;
+  transition: all 0.2s;
+  flex-shrink: 0; /* Prevent button from shrinking */
+}
+
+.reload-btn:hover:not(:disabled) {
+  background: #3a5a4a;
+  border-color: #5a8c69;
+}
+
+.reload-btn:disabled {
+  background: #333;
+  color: #888;
+  border-color: #555;
+  cursor: not-allowed;
+  opacity: 0.6;
 }
 
 .project-location {

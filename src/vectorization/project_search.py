@@ -167,6 +167,46 @@ class ProjectSearch:
         return [chunk for chunk in self.chunks if chunk['file_path'] == file_path]
 
 
+def search_similar_content(query: str, embeddings_path: str, k: int = 5, openai_api_key: str = None) -> List[Dict[str, Any]]:
+    """
+    Standalone function to search for similar content using the embeddings
+    
+    Args:
+        query: Search query
+        embeddings_path: Path to the embeddings folder 
+        k: Number of results to return
+        openai_api_key: OpenAI API key (if not provided, will try to get from environment)
+        
+    Returns:
+        List of search results
+    """
+    try:
+        # Get OpenAI API key from environment if not provided
+        if openai_api_key is None:
+            openai_api_key = os.getenv('OPENAI_API_KEY')
+        
+        if not openai_api_key:
+            raise ValueError("OpenAI API key not provided and not found in environment variables")
+        
+        # Extract project name and content folder from embeddings path
+        embeddings_path = Path(embeddings_path)
+        project_name = embeddings_path.parent.name
+        content_folder = embeddings_path.parent.parent
+        
+        # Create searcher instance and perform search
+        searcher = ProjectSearch(
+            project_name=project_name,
+            content_folder=str(content_folder),
+            openai_api_key=openai_api_key
+        )
+        
+        return searcher.search(query, top_k=k)
+        
+    except Exception as e:
+        logger.error(f"Error in search_similar_content: {e}")
+        return []
+
+
 def main():
     """Main function for command line usage"""
     import sys
