@@ -10,6 +10,7 @@ const SetupScreen: React.FC<SetupScreenProps> = ({ onSetupComplete }) => {
   const [anthropicApiKey, setAnthropicApiKey] = useState<string>('');
   const [openaiApiKey, setOpenaiApiKey] = useState<string>('');
   const [isLoading, setIsLoading] = useState<boolean>(false);
+  const [loadingMessage, setLoadingMessage] = useState<string>('');
   const [errors, setErrors] = useState<{folder?: string; anthropicApiKey?: string; openaiApiKey?: string}>({});
 
   // Load environment variables on component mount
@@ -71,6 +72,7 @@ const SetupScreen: React.FC<SetupScreenProps> = ({ onSetupComplete }) => {
     }
     
     setIsLoading(true);
+    setLoadingMessage('Saving settings...');
     
     try {
       // Save environment variables
@@ -82,15 +84,46 @@ const SetupScreen: React.FC<SetupScreenProps> = ({ onSetupComplete }) => {
       
       await window.electronAPI.saveEnvVars(envVars);
       
-      // Simulate save delay
-      setTimeout(() => {
-        onSetupComplete(folderPath, anthropicApiKey, openaiApiKey);
+      // Start vectorization
+      setLoadingMessage('Vectorizing project files...');
+      console.log('Starting project vectorization...');
+      // Use relative path - the main process will resolve it correctly
+      const contentPath = './content';
+      
+      try {
+        const vectorizationResult = await window.electronAPI.vectorizeProject(
+          folderPath,
+          contentPath,
+          openaiApiKey
+        );
+        
+        console.log('Vectorization result:', vectorizationResult);
+        
+        if (vectorizationResult.status === 'completed') {
+          console.log(`Successfully vectorized ${vectorizationResult.total_files} files into ${vectorizationResult.total_chunks} chunks`);
+        } else if (vectorizationResult.status === 'no_files') {
+          console.log('No supported files found in project for vectorization');
+        } else {
+          console.warn('Vectorization completed with status:', vectorizationResult.status);
+        }
+      } catch (vectorizationError) {
+        console.error('Vectorization failed:', vectorizationError);
+        // Don't block the setup process if vectorization fails
+        // The user can still proceed to use the app
+      }
+      
+              // Complete setup
+        setLoadingMessage('Finalizing...');
+        setTimeout(() => {
+          onSetupComplete(folderPath, anthropicApiKey, openaiApiKey);
+          setIsLoading(false);
+          setLoadingMessage('');
+        }, 1000);
+      } catch (error) {
+        console.error('Error saving environment variables:', error);
         setIsLoading(false);
-      }, 500);
-    } catch (error) {
-      console.error('Error saving environment variables:', error);
-      setIsLoading(false);
-    }
+        setLoadingMessage('');
+      }
   };
 
   return (
@@ -156,7 +189,7 @@ const SetupScreen: React.FC<SetupScreenProps> = ({ onSetupComplete }) => {
             disabled={isLoading}
             className="save-btn"
           >
-            {isLoading ? 'Saving...' : 'Get Started'}
+            {isLoading ? (loadingMessage || 'Processing...') : 'Get Started'}
           </button>
         </div>
       </div>

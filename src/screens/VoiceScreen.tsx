@@ -1,5 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
-import VoiceVisualizer from '../components/VoiceVisualizer';
+import React, { useState, useRef } from 'react';
 import './VoiceScreen.css';
 
 interface VoiceScreenProps {
@@ -9,139 +8,286 @@ interface VoiceScreenProps {
   onReset: () => void;
 }
 
+interface ChatMessage {
+  id: string;
+  type: 'user' | 'assistant';
+  content: string;
+  images?: string[];
+  timestamp: Date;
+}
+
 const VoiceScreen: React.FC<VoiceScreenProps> = ({ folderPath, anthropicApiKey, openaiApiKey, onReset }) => {
-  const [isListening, setIsListening] = useState<boolean>(false);
-  const [transcript, setTranscript] = useState<string>('');
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [inputMessage, setInputMessage] = useState<string>('');
+  const [uploadedImages, setUploadedImages] = useState<string[]>([]);
+  const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const [isProcessing, setIsProcessing] = useState<boolean>(false);
-  const [audioLevel, setAudioLevel] = useState<number>(0);
-  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
-  const audioContextRef = useRef<AudioContext | null>(null);
-  const analyserRef = useRef<AnalyserNode | null>(null);
+  const [isDragOver, setIsDragOver] = useState<boolean>(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const chatContainerRef = useRef<HTMLDivElement>(null);
 
-  // Initialize audio context and analyzer
-  useEffect(() => {
-    const initializeAudio = async () => {
-      try {
-        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-        audioContextRef.current = new AudioContext();
-        analyserRef.current = audioContextRef.current.createAnalyser();
-        
-        const source = audioContextRef.current.createMediaStreamSource(stream);
-        source.connect(analyserRef.current);
-        
-        analyserRef.current.fftSize = 256;
-        
-        // Start audio level monitoring
-        const updateAudioLevel = () => {
-          if (analyserRef.current && isListening) {
-            const dataArray = new Uint8Array(analyserRef.current.frequencyBinCount);
-            analyserRef.current.getByteFrequencyData(dataArray);
-            
-            const average = dataArray.reduce((sum, value) => sum + value, 0) / dataArray.length;
-            setAudioLevel(average / 255); // Normalize to 0-1
+  const handleImageUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const files = event.target.files;
+    if (!files) return;
+
+    processImageFiles(Array.from(files));
+  };
+
+  const processImageFiles = (files: File[]) => {
+    files.forEach(file => {
+      if (file.type.startsWith('image/')) {
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          if (e.target?.result) {
+            setUploadedImages(prev => [...prev, e.target!.result as string]);
           }
-          requestAnimationFrame(updateAudioLevel);
         };
-        
-        updateAudioLevel();
-        
-      } catch (error) {
-        console.error('Error accessing microphone:', error);
+        reader.readAsDataURL(file);
       }
-    };
-    
-    initializeAudio();
-    
-    return () => {
-      if (audioContextRef.current) {
-        audioContextRef.current.close();
-      }
-    };
-  }, [isListening]);
-
-  const startListening = () => {
-    setIsListening(true);
-    setTranscript('');
-    
-    // Here you would integrate with your Python backend for speech recognition
-    // For now, this is a placeholder
-    console.log('Starting voice recognition...');
+    });
   };
 
-  const stopListening = () => {
-    setIsListening(false);
-    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
-      mediaRecorderRef.current.stop();
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (!isDragOver) {
+      setIsDragOver(true);
     }
   };
 
-  const handleProcessCommand = async () => {
-    if (!transcript.trim()) return;
+  const handleDragEnter = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragOver(true);
+  };
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    // Only set isDragOver to false if we're leaving the entire drop zone
+    if (!e.currentTarget.contains(e.relatedTarget as Node)) {
+      setIsDragOver(false);
+    }
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragOver(false);
+
+    const files = Array.from(e.dataTransfer.files);
+    const imageFiles = files.filter(file => file.type.startsWith('image/'));
     
+    if (imageFiles.length > 0) {
+      processImageFiles(imageFiles);
+    }
+  };
+
+  const removeImage = (index: number) => {
+    setUploadedImages(prev => prev.filter((_, i) => i !== index));
+  };
+
+  const handleSendMessage = async () => {
+    if (!inputMessage.trim() && uploadedImages.length === 0) return;
+
+    const newMessage: ChatMessage = {
+      id: Date.now().toString(),
+      type: 'user',
+      content: inputMessage,
+      images: uploadedImages.length > 0 ? [...uploadedImages] : undefined,
+      timestamp: new Date()
+    };
+
+    setMessages(prev => [...prev, newMessage]);
+    setInputMessage('');
+    setUploadedImages([]);
     setIsProcessing(true);
-    
-    try {
-      // Here you would call your Python backend with the transcript
-      // and the folderPath and claudeApiKey for processing
-      console.log('Processing command:', transcript);
-      console.log('Folder path:', folderPath);
-      console.log('API key available:', !!anthropicApiKey);
-      
-      // Simulate processing delay
-      await new Promise(resolve => setTimeout(resolve, 2000));
-      
-    } catch (error) {
-      console.error('Error processing command:', error);
-    } finally {
+
+    // Scroll to bottom
+    setTimeout(() => {
+      if (chatContainerRef.current) {
+        chatContainerRef.current.scrollTop = chatContainerRef.current.scrollHeight;
+      }
+    }, 100);
+
+    // Simulate AI response (replace with actual AI integration later)
+    setTimeout(() => {
+      const aiResponse: ChatMessage = {
+        id: (Date.now() + 1).toString(),
+        type: 'assistant',
+        content: `I received your message: "${inputMessage}". This is where I would process your request using the project context from ${folderPath}. The vectorized project data would help me provide relevant code suggestions and answers.`,
+        timestamp: new Date()
+      };
+
+      setMessages(prev => [...prev, aiResponse]);
       setIsProcessing(false);
+
+      // Scroll to bottom
+      setTimeout(() => {
+        if (chatContainerRef.current) {
+          chatContainerRef.current.scrollTop = chatContainerRef.current.scrollHeight;
+        }
+      }, 100);
+    }, 2000);
+  };
+
+  const handleKeyPress = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      handleSendMessage();
     }
+  };
+
+  const openImageModal = (imageSrc: string) => {
+    setSelectedImage(imageSrc);
+  };
+
+  const closeImageModal = () => {
+    setSelectedImage(null);
   };
 
   return (
-    <div className="voice-screen">
-      <div className="voice-header">
-        <h1>SousDev</h1>
-        <div className="project-info">
-          <span className="folder-path">{folderPath}</span>
-          <button onClick={onReset} className="reset-btn">
+    <div 
+      className="voice-screen"
+      onDragOver={handleDragOver}
+      onDragEnter={handleDragEnter}
+      onDragLeave={handleDragLeave}
+      onDrop={handleDrop}
+    >
+      {/* Drag Overlay */}
+      {isDragOver && (
+        <div className="drag-overlay">
+          <div className="drag-message">
+            <div className="drag-icon">📁</div>
+            <p>Drop images here</p>
+          </div>
+        </div>
+      )}
+
+      {/* Header */}
+      <div className="chat-header">
+        <div className="header-left">
+          <button onClick={onReset} className="change-settings-btn">
             Change Settings
           </button>
+          <span className="project-location">{folderPath}</span>
         </div>
       </div>
-      
-      <div className="voice-content">
-        <VoiceVisualizer 
-          isListening={isListening}
-          audioLevel={audioLevel}
-          onToggleListening={isListening ? stopListening : startListening}
-        />
+
+      {/* Divider Line */}
+      <div className="header-divider"></div>
+
+      {/* Chat Container */}
+      <div className="chat-container" ref={chatContainerRef}>
+        {messages.length === 0 ? (
+          <div className="empty-chat">
+            <p>Start a conversation about your project: {folderPath.split('/').pop() || 'Unknown Project'}</p>
+          </div>
+        ) : (
+          messages.map((message) => (
+            <div key={message.id} className={`message ${message.type}`}>
+              {message.images && (
+                <div className="message-images">
+                  {message.images.map((img, index) => (
+                    <img
+                      key={index}
+                      src={img}
+                      alt={`Uploaded ${index + 1}`}
+                      className="message-image"
+                      onClick={() => openImageModal(img)}
+                    />
+                  ))}
+                </div>
+              )}
+              <div className="message-content">
+                {message.content}
+              </div>
+              <div className="message-timestamp">
+                {message.timestamp.toLocaleTimeString()}
+              </div>
+            </div>
+          ))
+        )}
         
-        <div className="transcript-section">
-          <div className="transcript-container">
-            <h3>Transcript</h3>
-            <div className="transcript-text">
-              {transcript || 'Say something...'}
+        {isProcessing && (
+          <div className="message assistant">
+            <div className="message-content typing">
+              <span></span>
+              <span></span>
+              <span></span>
             </div>
           </div>
+        )}
+      </div>
+
+      {/* Input Area */}
+      <div className="chat-input-container">
+        {/* Image Preview */}
+        {uploadedImages.length > 0 && (
+          <div className="image-preview-container">
+            {uploadedImages.map((img, index) => (
+              <div key={index} className="image-preview">
+                <img src={img} alt={`Preview ${index + 1}`} />
+                <button 
+                  onClick={() => removeImage(index)}
+                  className="remove-image-btn"
+                >
+                  ×
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Input Row */}
+        <div className="input-row">
+          <button 
+            onClick={() => fileInputRef.current?.click()}
+            className="upload-btn"
+            title="Upload images"
+          >
+            📎
+          </button>
           
-          <div className="controls">
-            <button 
-              onClick={isListening ? stopListening : startListening}
-              className={`control-btn ${isListening ? 'listening' : ''}`}
-            >
-              {isListening ? 'Stop Listening' : 'Start Listening'}
-            </button>
-            
-            <button 
-              onClick={handleProcessCommand}
-              disabled={!transcript.trim() || isProcessing}
-              className="control-btn process-btn"
-            >
-              {isProcessing ? 'Processing...' : 'Process Command'}
+          <textarea
+            value={inputMessage}
+            onChange={(e) => setInputMessage(e.target.value)}
+            onKeyPress={handleKeyPress}
+            placeholder="Ask about your project..."
+            className="message-input"
+            rows={1}
+          />
+          
+          <button 
+            onClick={handleSendMessage}
+            disabled={isProcessing || (!inputMessage.trim() && uploadedImages.length === 0)}
+            className="send-btn"
+          >
+            Send
+          </button>
+        </div>
+
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept="image/*"
+          multiple
+          onChange={handleImageUpload}
+          style={{ display: 'none' }}
+        />
+      </div>
+
+      {/* Image Modal */}
+      {selectedImage && (
+        <div className="image-modal" onClick={closeImageModal}>
+          <div className="image-modal-content">
+            <img src={selectedImage} alt="Enlarged" />
+            <button className="close-modal-btn" onClick={closeImageModal}>
+              ×
             </button>
           </div>
         </div>
-      </div>
+      )}
     </div>
   );
 };

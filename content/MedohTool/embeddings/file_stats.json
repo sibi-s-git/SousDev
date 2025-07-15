@@ -1,0 +1,82 @@
+{
+  "README.md": {
+    "size_bytes": 542,
+    "chunk_count": 1,
+    "extension": ".md"
+  },
+  "docker-compose.yml": {
+    "size_bytes": 440,
+    "chunk_count": 1,
+    "extension": ".yml"
+  },
+  "backend/requirements.txt": {
+    "size_bytes": 103,
+    "chunk_count": 1,
+    "extension": ".txt"
+  },
+  "backend/valid_area_codes.txt": {
+    "size_bytes": 1060,
+    "chunk_count": 1,
+    "extension": ".txt"
+  },
+  "backend/app.py": {
+    "size_bytes": 6711,
+    "chunk_count": 2,
+    "extension": ".py"
+  },
+  "client/package.json": {
+    "size_bytes": 847,
+    "chunk_count": 1,
+    "extension": ".json"
+  },
+  "client/public/index.html": {
+    "size_bytes": 1721,
+    "chunk_count": 1,
+    "extension": ".html"
+  },
+  "client/public/manifest.json": {
+    "size_bytes": 492,
+    "chunk_count": 1,
+    "extension": ".json"
+  },
+  "client/public/robots.txt": {
+    "size_bytes": 67,
+    "chunk_count": 1,
+    "extension": ".txt"
+  },
+  "client/src/reportWebVitals.js": {
+    "size_bytes": 362,
+    "chunk_count": 1,
+    "extension": ".js"
+  },
+  "client/src/App.css": {
+    "size_bytes": 2584,
+    "chunk_count": 1,
+    "extension": ".css"
+  },
+  "client/src/index.js": {
+    "size_bytes": 535,
+    "chunk_count": 1,
+    "extension": ".js"
+  },
+  "client/src/index.css": {
+    "size_bytes": 366,
+    "chunk_count": 1,
+    "extension": ".css"
+  },
+  "client/src/App.test.js": {
+    "size_bytes": 246,
+    "chunk_count": 1,
+    "extension": ".js"
+  },
+  "client/src/setupTests.js": {
+    "size_bytes": 241,
+    "chunk_count": 1,
+    "extension": ".js"
+  },
+  "client/src/App.js": {
+    "size_bytes": 4429,
+    "chunk_count": 1,
+    "extension": ".js"
+  }
+}

@@ -1,6 +1,7 @@
 const { app, BrowserWindow, ipcMain, dialog } = require('electron');
 const path = require('path');
 const fs = require('fs');
+const { spawn } = require('child_process');
 const isDev = process.env.ELECTRON_IS_DEV === 'true';
 
 let mainWindow;
@@ -143,6 +144,65 @@ ipcMain.handle('save-env-vars', async (event, variables) => {
 // Handle creating context folder manually
 ipcMain.handle('ensure-context-folder', async () => {
   return ensureProjectContextFolder();
+});
+
+// Handle project vectorization
+ipcMain.handle('vectorize-project', async (event, projectPath, contentPath, openaiApiKey) => {
+  return new Promise((resolve, reject) => {
+    console.log('Starting project vectorization...');
+    console.log('Project path:', projectPath);
+    console.log('Content path:', contentPath);
+    
+    // Resolve content path relative to app directory
+    const resolvedContentPath = path.resolve(__dirname, '..', contentPath);
+    console.log('Resolved content path:', resolvedContentPath);
+    
+    // Path to the Python script
+    const scriptPath = path.join(__dirname, '..', 'src', 'vectorization', 'project_vectorizer.py');
+    
+    // Spawn Python process
+    const pythonProcess = spawn('python3', [
+      scriptPath,
+      projectPath,
+      resolvedContentPath,
+      openaiApiKey
+    ], {
+      cwd: path.join(__dirname, '..')
+    });
+    
+    let stdout = '';
+    let stderr = '';
+    
+    pythonProcess.stdout.on('data', (data) => {
+      stdout += data.toString();
+      console.log('Python stdout:', data.toString());
+    });
+    
+    pythonProcess.stderr.on('data', (data) => {
+      stderr += data.toString();
+      console.log('Python stderr:', data.toString());
+    });
+    
+    pythonProcess.on('close', (code) => {
+      console.log('Python process exited with code:', code);
+      
+      if (code === 0) {
+        try {
+          const result = JSON.parse(stdout);
+          resolve(result);
+        } catch (e) {
+          reject(new Error('Failed to parse Python output: ' + e.message));
+        }
+      } else {
+        reject(new Error(`Vectorization failed with code ${code}: ${stderr}`));
+      }
+    });
+    
+    pythonProcess.on('error', (error) => {
+      console.error('Failed to start Python process:', error);
+      reject(new Error('Failed to start vectorization process: ' + error.message));
+    });
+  });
 });
 
 // Set app icon for dock/taskbar

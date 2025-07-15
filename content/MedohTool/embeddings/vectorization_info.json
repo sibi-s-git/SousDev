@@ -1,0 +1,12 @@
+{
+  "status": "completed",
+  "total_files": 16,
+  "total_chunks": 17,
+  "embedding_dimension": 1536,
+  "model": "text-embedding-3-small",
+  "chunk_size": 1000,
+  "chunk_overlap": 200,
+  "embeddings_path": "/Users/sibi/Documents/SousDev/content/MedohTool/embeddings/embeddings.index",
+  "metadata_path": "/Users/sibi/Documents/SousDev/content/MedohTool/embeddings/chunks_metadata.json",
+  "stats_path": "/Users/sibi/Documents/SousDev/content/MedohTool/embeddings/file_stats.json"
+}
